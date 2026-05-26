@@ -1,0 +1,9 @@
+{
+  "name": "class-companion",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "node --preserve-symlinks-main server.js",
+    "start": "node --preserve-symlinks-main server.js"
+  }
+}
