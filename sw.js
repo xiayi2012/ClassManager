@@ -1,4 +1,4 @@
-const CACHE = "class-companion-v8";
+const CACHE = "class-companion-v30";
 const ASSETS = ["./", "./index.html", "./styles.css", "./app.js", "./manifest.webmanifest", "./icon.svg"];
 
 self.addEventListener("install", (event) => {

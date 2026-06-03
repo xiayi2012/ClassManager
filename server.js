@@ -20,6 +20,12 @@ const emptyData = {
   classes: [],
   students: [],
   sessions: [],
+  profile: {
+    name: "夏老师",
+    avatar: "夏",
+    title: "课堂点名助手",
+    cardStyle: "square",
+  },
 };
 
 function ensureDataFile() {
@@ -57,6 +63,7 @@ function normalizeData(data) {
     classes: Array.isArray(data.classes) ? data.classes : [],
     students: Array.isArray(data.students) ? data.students : [],
     sessions: Array.isArray(data.sessions) ? data.sessions : [],
+    profile: data.profile && typeof data.profile === "object" ? data.profile : emptyData.profile,
     savedAt: new Date().toISOString(),
   };
 }

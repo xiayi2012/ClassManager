@@ -18,6 +18,7 @@ let state = {
   classes: [],
   students: [],
   sessions: [],
+  profile: { name: "夏老师", avatar: "夏", title: "课堂点名助手", cardStyle: "square" },
   activeClassId: null,
   activeSessionId: null,
   activeStudentId: null,
@@ -29,6 +30,10 @@ let state = {
 };
 
 let saveQueue = Promise.resolve();
+let classAutoSaveTimer = null;
+let confirmResolver = null;
+let lastRenderedView = "";
+let toastTimer = null;
 
 async function loadData() {
   const response = await fetch("./api/data", { cache: "no-store" });
@@ -37,8 +42,21 @@ async function loadData() {
   state.classes = Array.isArray(data.classes) ? data.classes : [];
   state.students = Array.isArray(data.students) ? data.students : [];
   state.sessions = Array.isArray(data.sessions) ? data.sessions : [];
+  state.profile = normalizeProfile(data.profile);
   normalizeSessions();
   sortData();
+}
+
+function normalizeProfile(profile = {}) {
+  const name = String(profile.name || "夏老师").trim() || "夏老师";
+  const avatar = String(profile.avatar || name.slice(0, 1) || "夏").trim().slice(0, 2);
+  const cardStyle = ["square", "circle", "peppa", "cloud", "bubble"].includes(profile.cardStyle) ? profile.cardStyle : "square";
+  return {
+    name,
+    avatar,
+    title: String(profile.title || "课堂点名助手").trim() || "课堂点名助手",
+    cardStyle,
+  };
 }
 
 function normalizeSessions() {
@@ -71,6 +89,7 @@ async function saveData() {
         classes: state.classes,
         students: state.students,
         sessions: state.sessions,
+        profile: state.profile,
       }),
     });
     if (!response.ok) throw new Error("数据文件保存失败");
@@ -117,32 +136,39 @@ function sessionClass(session = activeSession()) {
 
 function showToast(message) {
   state.toast = message;
-  render();
-  setTimeout(() => {
+  document.querySelector(".toast")?.remove();
+  const toast = document.createElement("div");
+  toast.className = "toast";
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
     if (state.toast === message) {
       state.toast = "";
-      render();
+      toast.remove();
     }
   }, 2000);
 }
 
 function render() {
+  const viewChanged = state.view !== lastRenderedView;
   $("#app").innerHTML = `
-    <div class="app-shell">
-      ${renderTopbar()}
-      ${state.view === "home" ? renderHome() : ""}
-      ${state.view === "records" ? renderRecords() : ""}
-      ${state.view === "classes" ? renderClasses() : ""}
-      ${state.view === "class" ? renderClass() : ""}
-      ${state.view === "classEditor" ? renderClassEditor() : ""}
-      ${state.view === "studentEditor" ? renderStudentEditor() : ""}
-      ${state.view === "rollcall" ? renderRollcall() : ""}
-      ${state.view === "profile" ? renderProfile() : ""}
+    <div class="app-shell ${state.view === "home" ? "" : "compact-shell"} card-style-${state.profile.cardStyle || "square"}">
+      <div class="view-stage ${viewChanged ? "view-enter" : ""}" data-view="${state.view}">
+        ${state.view === "home" ? renderHome() : ""}
+        ${state.view === "records" ? renderRecords() : ""}
+        ${state.view === "classes" ? renderClasses() : ""}
+        ${state.view === "class" ? renderClass() : ""}
+        ${state.view === "classEditor" ? renderClassEditor() : ""}
+        ${state.view === "studentEditor" ? renderStudentEditor() : ""}
+        ${state.view === "rollcall" ? renderRollcall() : ""}
+        ${state.view === "profile" ? renderProfile() : ""}
+      </div>
       ${renderBottomNav()}
       ${state.modal ? renderModal() : ""}
-      ${state.toast ? `<div class="toast">${escapeHtml(state.toast)}</div>` : ""}
     </div>
   `;
+  lastRenderedView = state.view;
   bindEvents();
 }
 
@@ -150,7 +176,9 @@ function renderTopbar() {
   return `
     <header class="topbar">
       <div class="brand" role="button" data-action="home">
-        <div class="brand-mark">点</div>
+        <div class="brand-mark app-logo" aria-hidden="true">
+          <span></span><span></span><i></i>
+        </div>
         <div>
           <h1>${APP_NAME}</h1>
           <p>名单管理、点名记录、自动保存</p>
@@ -167,8 +195,17 @@ function renderHome() {
   return `
     <main class="main-grid home-grid">
       <section class="panel">
-        <div class="panel-header">
-          <h2>首页</h2>
+        <div class="panel-header page-header home-brand-header">
+          <div class="brand home-brand" role="button" data-action="home">
+            <div class="brand-mark app-logo" aria-hidden="true">
+              <span></span><span></span><i></i>
+            </div>
+            <div class="page-title">
+              <span>课堂工具</span>
+              <h2>${APP_NAME}</h2>
+              <p>名单管理 · 点名记录 · 自动保存</p>
+            </div>
+          </div>
         </div>
         <div class="panel-body form-grid">
           <div class="native-summary">
@@ -176,7 +213,6 @@ function renderHome() {
             <div><b>${totalStudents}</b><span>学生</span></div>
             <div><b>${totalSessions}</b><span>点名</span></div>
           </div>
-          <button class="btn primary home-action" data-action="new-rollcall">新建点名</button>
           ${latest ? `
             <article class="history-card clickable-card" data-action="open-rollcall" data-id="${latest.id}">
               <h3>最近点名：${escapeHtml(latest.name || "未命名点名")}</h3>
@@ -190,11 +226,17 @@ function renderHome() {
 }
 
 function renderRecords() {
+  const totalSessions = state.sessions.length;
+  const latest = state.sessions[0];
   return `
     <main class="main-grid home-grid">
       <section class="panel">
-        <div class="panel-header">
-          <h2>点名记录</h2>
+        <div class="panel-header page-header">
+          <div class="page-title">
+            <span>课堂记录</span>
+            <h2>点名记录</h2>
+            <p>${totalSessions} 条记录${latest ? ` · 最近 ${fmt(latest.updatedAt || latest.startedAt)}` : ""}</p>
+          </div>
           <button class="btn primary compact-cta" data-action="new-rollcall">新建点名</button>
         </div>
         <div class="panel-body">
@@ -208,18 +250,42 @@ function renderRecords() {
 }
 
 function renderProfile() {
+  const totalStudents = state.students.length;
+  const totalSessions = state.sessions.length;
+  const profile = state.profile;
+  const styleLabels = { square: "方框", circle: "圈圈", peppa: "佩奇", cloud: "云朵", bubble: "气泡" };
   return `
     <main class="panel">
-      <div class="panel-header"><h2>我的</h2></div>
       <div class="panel-body form-grid">
-        <div class="native-profile">
-          <div class="brand-mark">点</div>
-          <div>
-            <h3>${APP_NAME}</h3>
-            <div class="meta">数据保存在服务器文件 data/app-data.json</div>
+        <div class="native-profile page-header">
+          <div class="profile-avatar" aria-hidden="true">
+            <span>${escapeHtml(profile.avatar)}</span>
           </div>
+          <div>
+            <h3>${escapeHtml(profile.name)}</h3>
+            <div class="meta">${escapeHtml(profile.title)} · 今日状态良好</div>
+          </div>
+          <button class="btn ghost small profile-edit-btn" data-action="edit-profile">编辑</button>
         </div>
-        <div class="notice">当前版本专注班级名单和课堂点名。后续可以继续加账号、导出、权限等功能。</div>
+        <div class="profile-stats">
+          <div><b>${state.classes.length}</b><span>班级</span></div>
+          <div><b>${totalStudents}</b><span>学生</span></div>
+          <div><b>${totalSessions}</b><span>点名</span></div>
+        </div>
+        <div class="profile-list">
+          <button class="profile-row" type="button" data-action="edit-profile"><span>个人信息</span><b>${escapeHtml(profile.name)} · 点击修改</b></button>
+          <button class="profile-row" type="button"><span>课堂偏好</span><b>点击即点名 · 自动保存</b></button>
+          <section class="profile-style-panel">
+            <div>
+              <span>名单框框样式</span>
+              <b>当前：${styleLabels[profile.cardStyle] || "方框"}</b>
+            </div>
+            <div class="style-picker">
+              ${Object.entries(styleLabels).map(([value, label]) => `<button class="${profile.cardStyle === value ? "active" : ""}" type="button" data-action="set-card-style" data-style="${value}">${label}</button>`).join("")}
+            </div>
+          </section>
+          <button class="profile-row" type="button"><span>数据概览</span><b>${totalStudents} 名学生，${totalSessions} 条记录</b></button>
+        </div>
       </div>
     </main>
   `;
@@ -231,7 +297,7 @@ function renderBottomNav() {
     <nav class="bottom-nav" aria-label="主导航">
       <button class="${active("home")}" data-action="home"><span>⌂</span><b>首页</b></button>
       <button class="${active("records")}" data-action="open-records"><span>≡</span><b>点名记录</b></button>
-      <button class="nav-create" data-action="new-rollcall"><span>＋</span><b>新建点名</b></button>
+      <button class="nav-create" data-action="new-rollcall" aria-label="新建点名"><span>＋</span></button>
       <button class="${active("classes") || active("classEditor") || active("studentEditor")}" data-action="open-classes"><span>▦</span><b>班级列表</b></button>
       <button class="${active("profile")}" data-action="open-profile"><span>○</span><b>我的</b></button>
     </nav>
@@ -239,12 +305,16 @@ function renderBottomNav() {
 }
 
 function renderClasses() {
+  const totalStudents = state.students.length;
   return `
     <main class="panel">
-      <div class="panel-header">
-        <h2>班级列表</h2>
+      <div class="panel-header page-header">
+        <div class="page-title">
+          <span>名单管理</span>
+          <h2>班级列表</h2>
+          <p>${state.classes.length} 个班级 · ${totalStudents} 名学生</p>
+        </div>
         <div class="card-actions">
-          <button class="btn ghost small" data-action="home">返回点名</button>
           <button class="btn primary compact-cta" data-action="new-class">新建班级</button>
         </div>
       </div>
@@ -261,12 +331,15 @@ function renderClassAdminCard(klass) {
   const count = classStudents(klass.id).length;
   const rollcallCount = state.sessions.filter((session) => session.classId === klass.id).length;
   return `
-    <article class="class-card clickable-card" data-action="edit-class-list" data-id="${klass.id}">
-      <div>
-        <h3>${escapeHtml(klass.name)}</h3>
-        <div class="meta">${escapeHtml(klass.course || "未填写课程")} · ${count} 名学生 · ${rollcallCount} 条点名</div>
-        ${klass.note ? `<div class="meta">${escapeHtml(klass.note)}</div>` : ""}
+    <article class="class-card swipe-card" data-class-id="${klass.id}">
+      <div class="swipe-content clickable-card class-swipe-content" data-action="edit-class-list" data-id="${klass.id}">
+        <div>
+          <h3>${escapeHtml(klass.name)}</h3>
+          <div class="meta">${escapeHtml(klass.course || "未填写课程")} · ${count} 名学生 · ${rollcallCount} 条点名</div>
+          ${klass.note ? `<div class="meta">${escapeHtml(klass.note)}</div>` : ""}
+        </div>
       </div>
+      <button class="swipe-delete" data-action="delete-class-list" data-id="${klass.id}">删除</button>
     </article>
   `;
 }
@@ -293,9 +366,12 @@ function renderSessionCard(session) {
   const total = session.records.length;
   const called = session.records.filter((record) => record.status === "called").length;
   return `
-    <article class="history-card clickable-card" data-action="open-rollcall" data-id="${session.id}">
-      <h3>${escapeHtml(session.name || "未命名点名")}</h3>
-      <div class="meta">${escapeHtml(klass?.name || "班级已删除")} · ${called}/${total} 已点 · ${fmt(session.updatedAt || session.startedAt)}</div>
+    <article class="history-card swipe-card" data-session-id="${session.id}">
+      <div class="swipe-content clickable-card" data-action="open-rollcall" data-id="${session.id}">
+        <h3>${escapeHtml(session.name || "未命名点名")}</h3>
+        <div class="meta">${escapeHtml(klass?.name || "班级已删除")} · ${called}/${total} 已点 · ${fmt(session.updatedAt || session.startedAt)}</div>
+      </div>
+      <button class="swipe-delete" data-action="delete-rollcall" data-id="${session.id}">删除</button>
     </article>
   `;
 }
@@ -311,36 +387,43 @@ function renderClassEditor() {
   const students = classStudents();
   return `
     <main class="panel editor-panel">
-      <div class="panel-header">
+      <div class="panel-header editor-topbar page-header">
+        <button class="btn ghost small back-btn" data-action="open-classes">← 返回</button>
         <h2>${isNew ? "新建班级" : "编辑班级"}</h2>
+        ${isNew ? `<button class="btn primary small" data-action="save-class-editor">创建</button>` : `<span class="autosave-hint">自动保存</span>`}
       </div>
       <div class="panel-body form-grid editor-body">
         <form class="form-grid" data-form="class-editor">
-          <label>班级名称<input name="name" required value="${escapeHtml(current.name || "")}" placeholder="例如：高一 1 班" /></label>
-          <label>课程名称<input name="course" value="${escapeHtml(current.course || "")}" placeholder="可选" /></label>
+          <label>班级名称<input name="name" required ${isNew ? "" : `data-role="class-auto-save"`} value="${escapeHtml(current.name || "")}" placeholder="例如：高一 1 班" /></label>
+          <label>课程名称<input name="course" ${isNew ? "" : `data-role="class-auto-save"`} value="${escapeHtml(current.course || "")}" placeholder="可选" /></label>
         </form>
         ${isNew ? `<div class="notice">保存班级后可以继续管理学生名单。</div>` : `
-          <section>
-            <div class="panel-header inline-header">
-              <h3>学生名单</h3>
-              <div class="card-actions">
-                <button class="btn small" data-action="add-student">新增学生</button>
-                <button class="btn small" data-action="import-students">导入名单</button>
+          <section class="roster-section">
+            <div class="roster-header">
+              <div>
+                <h3>学生名单</h3>
+                <div class="meta">${students.length} 名学生</div>
+              </div>
+              <div class="roster-toolbar">
+                <button class="btn primary small" data-action="add-student">新增</button>
+                <button class="btn small" data-action="import-students">导入</button>
               </div>
             </div>
-            <div class="student-list">
-              ${students.map(renderStudentCard).join("") || renderEmpty("名单为空", "可以导入名单，或手动新增学生。")}
+            <div class="student-list student-grid">
+              ${students.map(renderStudentCard).join("") || renderEmpty("名单为空")}
             </div>
           </section>
-          <section class="danger-zone">
-            <button class="btn danger small" data-action="clear-students">清空名单</button>
-            <button class="btn danger small" data-action="delete-class">删除班级</button>
+          <section class="danger-zone class-danger-zone">
+            <div>
+              <strong>危险操作</strong>
+              <div class="meta">这些操作会影响当前班级数据，请谨慎使用。</div>
+            </div>
+            <div class="danger-actions">
+              <button class="btn ghost danger-outline small" data-action="clear-students">清空名单</button>
+              <button class="btn danger small" data-action="delete-class">删除班级</button>
+            </div>
           </section>
         `}
-        <div class="editor-actions">
-          <button class="btn ghost" data-action="open-classes">返回</button>
-          <button class="btn primary" data-action="save-class-editor">保存</button>
-        </div>
       </div>
     </main>
   `;
@@ -417,7 +500,7 @@ function renderStudentEditor() {
   const current = student || { name: "", studentNo: "" };
   return `
     <main class="panel editor-panel">
-      <div class="panel-header">
+      <div class="panel-header page-header">
         <h2>${isNew ? "新增学生" : "编辑学生"}</h2>
       </div>
       <div class="panel-body form-grid editor-body">
@@ -452,7 +535,7 @@ function renderRollcall() {
 
   return `
     <main class="panel rollcall-panel">
-      <div class="panel-header">
+      <div class="panel-header page-header">
         <div>
           <h2>${escapeHtml(session.name)}</h2>
           <div class="meta">${escapeHtml(klass.name)} · 自动保存</div>
@@ -469,7 +552,7 @@ function renderRollcall() {
           <button class="chip ${state.sessionFilter === "all" ? "active" : ""}" data-action="filter-all">全部名单</button>
         </div>
         <div class="student-list rollcall-list">
-          ${rows.map(renderRollcallStudent).join("") || renderEmpty("当前没有学生", state.sessionFilter === "uncalled" ? "未点名名单已经清空。" : "没有匹配的学生。")}
+          ${rows.map(renderRollcallStudent).join("") || renderRollcallEmpty("当前没有学生")}
         </div>
         <div class="rollcall-actions">
           <button class="btn ghost" data-action="rollcall-back">返回</button>
@@ -501,8 +584,16 @@ function compareRollcallRows(a, b) {
   return noCollator.compare(a.student.name || "", b.student.name || "");
 }
 
-function renderEmpty(title, body) {
-  return `<div class="empty"><div><strong>${escapeHtml(title)}</strong><span>${escapeHtml(body)}</span></div></div>`;
+function renderEmpty(title, body = "") {
+  return `<div class="empty"><div><strong>${escapeHtml(title)}</strong>${body ? `<span>${escapeHtml(body)}</span>` : ""}</div></div>`;
+}
+
+function renderRollcallEmpty(title) {
+  return `
+    <div class="empty rollcall-empty">
+      <strong>${escapeHtml(title)}</strong>
+    </div>
+  `;
 }
 
 function renderModal() {
@@ -511,8 +602,40 @@ function renderModal() {
     student: renderStudentModal,
     import: renderImportModal,
     rollcall: renderRollcallModal,
+    confirm: renderConfirmModal,
+    profile: renderProfileModal,
   }[state.modal.type]?.() || "";
   return `<div class="modal-backdrop" data-action="close-modal"><section class="modal" onclick="event.stopPropagation()">${body}</section></div>`;
+}
+
+function renderConfirmModal() {
+  const modal = state.modal;
+  return `
+    <div class="confirm-dialog">
+      <div class="confirm-icon">!</div>
+      <div>
+        <h3>${escapeHtml(modal.title || "确认操作")}</h3>
+        <p>${escapeHtml(modal.message || "确定要继续吗？")}</p>
+      </div>
+      <div class="confirm-actions">
+        <button class="btn ghost" data-action="confirm-cancel">${escapeHtml(modal.cancelText || "取消")}</button>
+        <button class="btn danger" data-action="confirm-ok">${escapeHtml(modal.confirmText || "删除")}</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderProfileModal() {
+  const profile = state.profile;
+  return `
+    <div class="panel-header"><h3>编辑个人资料</h3><button class="btn ghost small" data-action="close-modal">关闭</button></div>
+    <form class="panel-body form-grid" data-form="profile">
+      <label>姓名<input name="name" required value="${escapeHtml(profile.name)}" placeholder="例如：夏老师" /></label>
+      <label>头像文字<input name="avatar" maxlength="2" value="${escapeHtml(profile.avatar)}" placeholder="可填一个字或表情" /></label>
+      <label>身份说明<input name="title" value="${escapeHtml(profile.title)}" placeholder="例如：课堂点名助手" /></label>
+      <button class="btn primary" type="submit">保存资料</button>
+    </form>
+  `;
 }
 
 function renderClassModal() {
@@ -572,6 +695,13 @@ function renderRollcallModal() {
 function bindEvents() {
   document.querySelectorAll("[data-action]").forEach((el) => el.addEventListener("click", handleAction));
   document.querySelectorAll("form[data-form]").forEach((form) => form.addEventListener("submit", handleForm));
+  document.querySelectorAll("[data-role='class-auto-save']").forEach((input) => {
+    input.addEventListener("input", () => {
+      clearTimeout(classAutoSaveTimer);
+      classAutoSaveTimer = setTimeout(() => saveClassEditor({ silent: true, rerender: false }), 600);
+    });
+    input.addEventListener("blur", () => saveClassEditor({ silent: true, rerender: false }));
+  });
 
   const studentSearch = document.querySelector("[data-role='student-search']");
   if (studentSearch) studentSearch.addEventListener("input", (event) => {
@@ -580,21 +710,33 @@ function bindEvents() {
   });
 
   bindDragSort();
+  bindSwipeCards();
 }
 
 async function handleAction(event) {
+  event.stopPropagation();
   const action = event.currentTarget.dataset.action;
   const id = event.currentTarget.dataset.id;
+
+  const swipedCard = event.currentTarget.closest(".swipe-card.swiped");
+  if (swipedCard && (action === "open-rollcall" || action === "edit-class-list")) {
+    swipedCard.classList.remove("swiped");
+    return;
+  }
 
   if (action === "home") goHome();
   if (action === "open-records") openRecords();
   if (action === "open-profile") openProfile();
+  if (action === "edit-profile") { state.modal = { type: "profile" }; render(); }
+  if (action === "set-card-style") await saveCardStyle(event.currentTarget.dataset.style);
   if (action === "open-classes") openClasses();
   if (action === "new-class") openClassEditor(null);
   if (action === "edit-class") openClassEditor(state.activeClassId);
   if (action === "edit-class-list") openClassEditor(id);
   if (action === "open-class") openClass(id);
-  if (action === "close-modal") { state.modal = null; render(); }
+  if (action === "close-modal") { closeModal(); }
+  if (action === "confirm-cancel") { resolveConfirm(false); }
+  if (action === "confirm-ok") { resolveConfirm(true); }
   if (action === "add-student") openStudentEditor(null);
   if (action === "edit-student") openStudentEditor(id);
   if (action === "delete-student") await deleteStudent(id);
@@ -608,8 +750,8 @@ async function handleAction(event) {
   if (action === "new-rollcall-for-class") { state.modal = { type: "rollcall", classId: id }; render(); }
   if (action === "open-rollcall") openRollcall(id);
   if (action === "delete-rollcall") await deleteRollcall(id);
-  if (action === "call-student") await setStudentCalled(id, true);
-  if (action === "undo-call") await setStudentCalled(id, false);
+  if (action === "call-student") await animateAndSetStudentCalled(event.currentTarget, id, true);
+  if (action === "undo-call") await animateAndSetStudentCalled(event.currentTarget, id, false);
   if (action === "filter-uncalled") { state.sessionFilter = "uncalled"; render(); }
   if (action === "filter-all") { state.sessionFilter = "all"; render(); }
   if (action === "save-rollcall") await saveRollcall();
@@ -624,8 +766,56 @@ async function handleForm(event) {
   if (event.currentTarget.dataset.form === "class") await saveClass(data);
   if (event.currentTarget.dataset.form === "student") await saveStudent(data);
   if (event.currentTarget.dataset.form === "rollcall") await createRollcall(data);
+  if (event.currentTarget.dataset.form === "profile") await saveProfile(data);
   if (event.currentTarget.dataset.form === "class-editor") await saveClassEditor();
   if (event.currentTarget.dataset.form === "student-editor") await saveStudentEditor();
+}
+
+async function saveProfile(data) {
+  const name = data.name.trim();
+  const avatar = data.avatar.trim() || name.slice(0, 1);
+  state.profile = normalizeProfile({
+    name,
+    avatar,
+    title: data.title.trim(),
+    cardStyle: state.profile.cardStyle,
+  });
+  await saveData();
+  state.modal = null;
+  render();
+  showToast("个人资料已保存");
+}
+
+async function saveCardStyle(cardStyle) {
+  state.profile = normalizeProfile({ ...state.profile, cardStyle });
+  await saveData();
+  render();
+  showToast("名单样式已切换");
+}
+
+function closeModal() {
+  if (state.modal?.type === "confirm") {
+    resolveConfirm(false);
+    return;
+  }
+  state.modal = null;
+  render();
+}
+
+function askConfirm({ title, message, confirmText = "删除", cancelText = "取消" }) {
+  return new Promise((resolve) => {
+    confirmResolver = resolve;
+    state.modal = { type: "confirm", title, message, confirmText, cancelText };
+    render();
+  });
+}
+
+function resolveConfirm(value) {
+  const resolver = confirmResolver;
+  confirmResolver = null;
+  state.modal = null;
+  render();
+  if (resolver) resolver(value);
 }
 
 function goHome() {
@@ -739,11 +929,14 @@ async function saveClass(data) {
   showToast("班级已保存");
 }
 
-async function saveClassEditor() {
+async function saveClassEditor({ silent = false, rerender = true } = {}) {
   const form = document.querySelector("[data-form='class-editor']");
   if (!form) return;
-  if (!form.reportValidity()) return;
   const data = Object.fromEntries(new FormData(form).entries());
+  if (!data.name.trim()) {
+    if (!silent) form.reportValidity();
+    return;
+  }
   const existing = classById(state.activeClassId);
   const klass = {
     id: existing?.id || uid(),
@@ -756,8 +949,8 @@ async function saveClassEditor() {
   await put("classes", klass);
   state.activeClassId = klass.id;
   state.view = "classEditor";
-  render();
-  showToast("班级已保存");
+  if (rerender) render();
+  if (!silent) showToast("班级已保存");
 }
 
 async function saveStudent(data) {
@@ -814,7 +1007,11 @@ async function saveStudentEditor() {
 }
 
 async function deleteStudent(id) {
-  if (!confirm("确定删除这个学生吗？已有点名记录会保留当时的姓名。")) return;
+  const ok = await askConfirm({
+    title: "删除学生",
+    message: "确定删除这个学生吗？已有点名记录会保留当时的姓名。",
+  });
+  if (!ok) return;
   await del("students", id);
   await touchClass(state.activeClassId);
   render();
@@ -822,7 +1019,11 @@ async function deleteStudent(id) {
 
 async function deleteStudentFromEditor() {
   if (!state.activeStudentId) return;
-  if (!confirm("确定删除这个学生吗？已有点名记录会保留当时的姓名。")) return;
+  const ok = await askConfirm({
+    title: "删除学生",
+    message: "确定删除这个学生吗？已有点名记录会保留当时的姓名。",
+  });
+  if (!ok) return;
   await del("students", state.activeStudentId);
   await touchClass(state.activeClassId);
   state.activeStudentId = null;
@@ -831,7 +1032,12 @@ async function deleteStudentFromEditor() {
 }
 
 async function clearStudents() {
-  if (!confirm("确定清空当前班级名单吗？已有点名记录不会删除。")) return;
+  const ok = await askConfirm({
+    title: "清空名单",
+    message: "确定清空当前班级名单吗？已有点名记录不会删除。",
+    confirmText: "清空",
+  });
+  if (!ok) return;
   state.students = state.students.filter((student) => student.classId !== state.activeClassId);
   await saveData();
   await touchClass(state.activeClassId);
@@ -843,7 +1049,11 @@ async function deleteClass() {
 }
 
 async function deleteClassById(classId, returnView = "home") {
-  if (!confirm("确定删除这个班级吗？学生名单和这个班级的点名记录都会删除。")) return;
+  const ok = await askConfirm({
+    title: "删除班级",
+    message: "确定删除这个班级吗？学生名单和这个班级的点名记录都会删除。",
+  });
+  if (!ok) return;
   state.students = state.students.filter((student) => student.classId !== classId);
   state.sessions = state.sessions.filter((session) => session.classId !== classId);
   state.classes = state.classes.filter((klass) => klass.id !== classId);
@@ -974,6 +1184,41 @@ async function setStudentCalled(studentId, called) {
   showToast(called ? "已点名" : "已恢复为未点名");
 }
 
+async function animateAndSetStudentCalled(card, studentId, called) {
+  if (called && navigator.vibrate) navigator.vibrate(12);
+  if (called && card) launchConfetti(card);
+  if (called && state.sessionFilter === "uncalled" && card) {
+    card.classList.add("student-card-leave");
+    await new Promise((resolve) => setTimeout(resolve, 360));
+  } else if (card) {
+    card.classList.add("student-card-tap");
+    await new Promise((resolve) => setTimeout(resolve, 120));
+  }
+  await setStudentCalled(studentId, called);
+}
+
+function launchConfetti(anchor) {
+  const rect = anchor.getBoundingClientRect();
+  const burst = document.createElement("div");
+  burst.className = "confetti-burst";
+  burst.style.left = `${rect.left + rect.width / 2}px`;
+  burst.style.top = `${rect.top + rect.height / 2}px`;
+  const colors = ["#76b7ad", "#e79a45", "#d95d55", "#5f95d6", "#8d75cf", "#54a66a"];
+  for (let i = 0; i < 18; i += 1) {
+    const piece = document.createElement("span");
+    const angle = (Math.PI * 2 * i) / 18;
+    const distance = 34 + Math.random() * 34;
+    piece.style.setProperty("--x", `${Math.cos(angle) * distance}px`);
+    piece.style.setProperty("--y", `${Math.sin(angle) * distance - 22}px`);
+    piece.style.setProperty("--r", `${Math.random() * 220 - 110}deg`);
+    piece.style.setProperty("--c", colors[i % colors.length]);
+    piece.style.animationDelay = `${Math.random() * 45}ms`;
+    burst.appendChild(piece);
+  }
+  document.body.appendChild(burst);
+  setTimeout(() => burst.remove(), 900);
+}
+
 async function saveRollcall() {
   const session = activeSession();
   if (!session) return;
@@ -983,7 +1228,11 @@ async function saveRollcall() {
 }
 
 async function deleteRollcall(id) {
-  if (!confirm("确定删除这条点名记录吗？")) return;
+  const ok = await askConfirm({
+    title: "删除点名记录",
+    message: "确定删除这条点名记录吗？",
+  });
+  if (!ok) return;
   await del("sessions", id);
   if (state.activeSessionId === id) goHome();
   else render();
@@ -1009,6 +1258,37 @@ function bindDragSort() {
       await saveData();
       render();
     });
+  });
+}
+
+function bindSwipeCards() {
+  document.querySelectorAll(".swipe-card").forEach((card) => {
+    let startX = 0;
+    let startY = 0;
+    let moved = false;
+
+    card.addEventListener("pointerdown", (event) => {
+      startX = event.clientX;
+      startY = event.clientY;
+      moved = false;
+    });
+
+    card.addEventListener("pointermove", (event) => {
+      const dx = event.clientX - startX;
+      const dy = event.clientY - startY;
+      if (Math.abs(dx) < 16 || Math.abs(dx) < Math.abs(dy)) return;
+      moved = true;
+      if (dx < -36) card.classList.add("swiped");
+      if (dx > 24) card.classList.remove("swiped");
+    });
+
+    card.addEventListener("pointerup", () => {
+      setTimeout(() => { moved = false; }, 80);
+    });
+
+    card.addEventListener("click", (event) => {
+      if (moved) event.preventDefault();
+    }, true);
   });
 }
 
