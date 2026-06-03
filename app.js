@@ -19,6 +19,7 @@ let state = {
   sessions: [],
   activeClassId: null,
   activeSessionId: null,
+  activeStudentId: null,
   query: "",
   sessionFilter: "uncalled",
   modal: null,
@@ -128,8 +129,14 @@ function render() {
     <div class="app-shell">
       ${renderTopbar()}
       ${state.view === "home" ? renderHome() : ""}
+      ${state.view === "records" ? renderRecords() : ""}
+      ${state.view === "classes" ? renderClasses() : ""}
       ${state.view === "class" ? renderClass() : ""}
+      ${state.view === "classEditor" ? renderClassEditor() : ""}
+      ${state.view === "studentEditor" ? renderStudentEditor() : ""}
       ${state.view === "rollcall" ? renderRollcall() : ""}
+      ${state.view === "profile" ? renderProfile() : ""}
+      ${renderBottomNav()}
       ${state.modal ? renderModal() : ""}
       ${state.toast ? `<div class="toast">${escapeHtml(state.toast)}</div>` : ""}
     </div>
@@ -147,40 +154,118 @@ function renderTopbar() {
           <p>名单管理、点名记录、自动保存</p>
         </div>
       </div>
-      <div class="toolbar">
-        <button class="btn primary" data-action="new-class">新建班级</button>
-        <button class="btn" data-action="new-rollcall">新建点名</button>
-      </div>
     </header>
   `;
 }
 
 function renderHome() {
+  const totalStudents = state.students.length;
+  const totalSessions = state.sessions.length;
+  const latest = state.sessions[0];
   return `
-    <main class="main-grid">
+    <main class="main-grid home-grid">
       <section class="panel">
         <div class="panel-header">
-          <h2>班级列表</h2>
-          <span class="meta">${state.classes.length} 个班级</span>
+          <h2>首页</h2>
+        </div>
+        <div class="panel-body form-grid">
+          <div class="native-summary">
+            <div><b>${state.classes.length}</b><span>班级</span></div>
+            <div><b>${totalStudents}</b><span>学生</span></div>
+            <div><b>${totalSessions}</b><span>点名</span></div>
+          </div>
+          <button class="btn primary home-action" data-action="new-rollcall">新建点名</button>
+          ${latest ? `
+            <article class="history-card clickable-card" data-action="open-rollcall" data-id="${latest.id}">
+              <h3>最近点名：${escapeHtml(latest.name || "未命名点名")}</h3>
+              <div class="meta">${fmt(latest.updatedAt || latest.startedAt)}</div>
+            </article>
+          ` : `<div class="notice">先到班级列表创建班级和名单，再新建点名。</div>`}
+        </div>
+      </section>
+    </main>
+  `;
+}
+
+function renderRecords() {
+  return `
+    <main class="main-grid home-grid">
+      <section class="panel">
+        <div class="panel-header">
+          <h2>点名记录</h2>
+          <button class="btn primary compact-cta" data-action="new-rollcall">新建点名</button>
         </div>
         <div class="panel-body">
-          <div class="class-list">
-            ${state.classes.map(renderClassCard).join("") || renderEmpty("还没有班级", "点击“新建班级”，进入后可以导入或新增学生名单。")}
+          <div class="history-list">
+            ${state.sessions.map(renderSessionCard).join("") || renderEmpty("暂无点名记录", "先新建班级和名单，再新建点名。")}
           </div>
         </div>
       </section>
-      <aside class="side-stack">
-        <section class="panel">
-          <div class="panel-header">
-            <h3>点名记录</h3>
-            <button class="btn small" data-action="new-rollcall">新建点名</button>
-          </div>
-          <div class="panel-body history-list">
-            ${state.sessions.slice(0, 8).map(renderSessionCard).join("") || `<div class="meta">暂无点名记录。</div>`}
-          </div>
-        </section>
-      </aside>
     </main>
+  `;
+}
+
+function renderProfile() {
+  return `
+    <main class="panel">
+      <div class="panel-header"><h2>我的</h2></div>
+      <div class="panel-body form-grid">
+        <div class="native-profile">
+          <div class="brand-mark">点</div>
+          <div>
+            <h3>${APP_NAME}</h3>
+            <div class="meta">数据保存在服务器文件 data/app-data.json</div>
+          </div>
+        </div>
+        <div class="notice">当前版本专注班级名单和课堂点名。后续可以继续加账号、导出、权限等功能。</div>
+      </div>
+    </main>
+  `;
+}
+
+function renderBottomNav() {
+  const active = (view) => state.view === view ? "active" : "";
+  return `
+    <nav class="bottom-nav" aria-label="主导航">
+      <button class="${active("home")}" data-action="home"><span>⌂</span><b>首页</b></button>
+      <button class="${active("records")}" data-action="open-records"><span>≡</span><b>点名记录</b></button>
+      <button class="nav-create" data-action="new-rollcall"><span>＋</span><b>新建点名</b></button>
+      <button class="${active("classes") || active("classEditor") || active("studentEditor")}" data-action="open-classes"><span>▦</span><b>班级列表</b></button>
+      <button class="${active("profile")}" data-action="open-profile"><span>○</span><b>我的</b></button>
+    </nav>
+  `;
+}
+
+function renderClasses() {
+  return `
+    <main class="panel">
+      <div class="panel-header">
+        <h2>班级列表</h2>
+        <div class="card-actions">
+          <button class="btn ghost small" data-action="home">返回点名</button>
+          <button class="btn primary compact-cta" data-action="new-class">新建班级</button>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="class-list">
+          ${state.classes.map(renderClassAdminCard).join("") || renderEmpty("还没有班级", "点击“新建班级”创建第一个班级。")}
+        </div>
+      </div>
+    </main>
+  `;
+}
+
+function renderClassAdminCard(klass) {
+  const count = classStudents(klass.id).length;
+  const rollcallCount = state.sessions.filter((session) => session.classId === klass.id).length;
+  return `
+    <article class="class-card clickable-card" data-action="edit-class-list" data-id="${klass.id}">
+      <div>
+        <h3>${escapeHtml(klass.name)}</h3>
+        <div class="meta">${escapeHtml(klass.course || "未填写课程")} · ${count} 名学生 · ${rollcallCount} 条点名</div>
+        ${klass.note ? `<div class="meta">${escapeHtml(klass.note)}</div>` : ""}
+      </div>
+    </article>
   `;
 }
 
@@ -206,18 +291,60 @@ function renderSessionCard(session) {
   const total = session.records.length;
   const called = session.records.filter((record) => record.status === "called").length;
   return `
-    <article class="history-card">
+    <article class="history-card clickable-card" data-action="open-rollcall" data-id="${session.id}">
       <h3>${escapeHtml(session.name || "未命名点名")}</h3>
       <div class="meta">${escapeHtml(klass?.name || "班级已删除")} · ${called}/${total} 已点 · ${fmt(session.updatedAt || session.startedAt)}</div>
-      <div class="card-actions">
-        <button class="btn primary small" data-action="open-rollcall" data-id="${session.id}">继续点名</button>
-        <button class="btn danger small" data-action="delete-rollcall" data-id="${session.id}">删除</button>
-      </div>
     </article>
   `;
 }
 
 function renderClass() {
+  return renderClassEditor();
+}
+
+function renderClassEditor() {
+  const klass = classById(state.activeClassId);
+  const isNew = !klass;
+  const current = klass || { name: "", course: "", note: "" };
+  const students = classStudents();
+  return `
+    <main class="panel editor-panel">
+      <div class="panel-header">
+        <h2>${isNew ? "新建班级" : "编辑班级"}</h2>
+      </div>
+      <div class="panel-body form-grid editor-body">
+        <form class="form-grid" data-form="class-editor">
+          <label>班级名称<input name="name" required value="${escapeHtml(current.name || "")}" placeholder="例如：高一 1 班" /></label>
+          <label>课程名称<input name="course" value="${escapeHtml(current.course || "")}" placeholder="可选" /></label>
+        </form>
+        ${isNew ? `<div class="notice">保存班级后可以继续管理学生名单。</div>` : `
+          <section>
+            <div class="panel-header inline-header">
+              <h3>学生名单</h3>
+              <div class="card-actions">
+                <button class="btn small" data-action="add-student">新增学生</button>
+                <button class="btn small" data-action="import-students">导入名单</button>
+              </div>
+            </div>
+            <div class="student-list">
+              ${students.map(renderStudentCard).join("") || renderEmpty("名单为空", "可以导入名单，或手动新增学生。")}
+            </div>
+          </section>
+          <section class="danger-zone">
+            <button class="btn danger small" data-action="clear-students">清空名单</button>
+            <button class="btn danger small" data-action="delete-class">删除班级</button>
+          </section>
+        `}
+        <div class="editor-actions">
+          <button class="btn ghost" data-action="open-classes">返回</button>
+          <button class="btn primary" data-action="save-class-editor">保存</button>
+        </div>
+      </div>
+    </main>
+  `;
+}
+
+function renderOldClass() {
   const klass = classById(state.activeClassId);
   if (!klass) return "";
   const students = classStudents();
@@ -272,17 +399,37 @@ function matchStudentQuery(student) {
 
 function renderStudentCard(student) {
   return `
-    <article class="student-card" draggable="true" data-student-id="${student.id}">
+    <article class="student-card clickable-card" draggable="true" data-student-id="${student.id}" data-action="edit-student" data-id="${student.id}">
       <div class="drag-handle" title="拖拽排序">☰</div>
       <div class="student-main">
         <h3>${escapeHtml(student.name)}</h3>
         <div class="meta">学号：${escapeHtml(student.studentNo || "未填写")}</div>
       </div>
-      <div class="card-actions">
-        <button class="btn small" data-action="edit-student" data-id="${student.id}">编辑</button>
-        <button class="btn danger small" data-action="delete-student" data-id="${student.id}">删除</button>
-      </div>
     </article>
+  `;
+}
+
+function renderStudentEditor() {
+  const student = state.students.find((item) => item.id === state.activeStudentId);
+  const isNew = !student;
+  const current = student || { name: "", studentNo: "" };
+  return `
+    <main class="panel editor-panel">
+      <div class="panel-header">
+        <h2>${isNew ? "新增学生" : "编辑学生"}</h2>
+      </div>
+      <div class="panel-body form-grid editor-body">
+        <form class="form-grid" data-form="student-editor">
+          <label>姓名<input name="name" required value="${escapeHtml(current.name || "")}" /></label>
+          <label>学号<input name="studentNo" value="${escapeHtml(current.studentNo || "")}" /></label>
+        </form>
+        ${isNew ? "" : `<section class="danger-zone"><button class="btn danger small" data-action="delete-student-editor">删除学生</button></section>`}
+        <div class="editor-actions">
+          <button class="btn ghost" data-action="open-class" data-id="${state.activeClassId}">返回</button>
+          <button class="btn primary" data-action="save-student-editor">保存</button>
+        </div>
+      </div>
+    </main>
   `;
 }
 
@@ -294,45 +441,36 @@ function renderRollcall() {
   const rows = session.records
     .map((record) => ({ ...record, student: state.students.find((student) => student.id === record.studentId) }))
     .filter((row) => row.student)
-    .filter((row) => state.sessionFilter === "all" || row.status === "uncalled")
-    .filter((row) => {
-      const query = state.query.trim().toLowerCase();
-      if (!query) return true;
-      return `${row.student.name} ${row.student.studentNo || ""}`.toLowerCase().includes(query);
-    });
+    .filter((row) => state.sessionFilter === "all" || row.status === "uncalled");
 
   const total = session.records.length;
   const called = session.records.filter((record) => record.status === "called").length;
   const uncalled = total - called;
 
   return `
-    <main class="panel">
+    <main class="panel rollcall-panel">
       <div class="panel-header">
         <div>
           <h2>${escapeHtml(session.name)}</h2>
-          <div class="meta">${escapeHtml(klass.name)} · 已点 ${called}/${total} · 未点 ${uncalled} · 自动保存</div>
-        </div>
-        <div class="card-actions">
-          <button class="btn small" data-action="filter-uncalled">只看未点名</button>
-          <button class="btn small" data-action="filter-all">查看全部</button>
-          <button class="btn ghost small" data-action="open-class" data-id="${klass.id}">返回班级</button>
+          <div class="meta">${escapeHtml(klass.name)} · 自动保存</div>
         </div>
       </div>
-      <div class="panel-body session-head">
-        <div class="stats-row">
-          <div class="stat"><b>${called}</b><span>已点名</span></div>
-          <div class="stat"><b>${uncalled}</b><span>未点名</span></div>
-          <div class="stat"><b>${total}</b><span>总人数</span></div>
+      <div class="panel-body session-head compact-session">
+        <div class="mini-stats">
+          <span><b>${uncalled}</b> 未点</span>
+          <span><b>${called}</b> 已点</span>
+          <span><b>${total}</b> 总数</span>
         </div>
-        <div class="two-cols">
-          <input data-role="rollcall-search" value="${escapeHtml(state.query)}" placeholder="搜索姓名或学号" />
-          <select data-role="rollcall-filter">
-            <option value="uncalled" ${state.sessionFilter === "uncalled" ? "selected" : ""}>只看未点名</option>
-            <option value="all" ${state.sessionFilter === "all" ? "selected" : ""}>查看全部</option>
-          </select>
+        <div class="filters rollcall-tabs">
+          <button class="chip ${state.sessionFilter === "uncalled" ? "active" : ""}" data-action="filter-uncalled">未点名</button>
+          <button class="chip ${state.sessionFilter === "all" ? "active" : ""}" data-action="filter-all">全部名单</button>
         </div>
-        <div class="student-list">
+        <div class="student-list rollcall-list">
           ${rows.map(renderRollcallStudent).join("") || renderEmpty("当前没有学生", state.sessionFilter === "uncalled" ? "未点名名单已经清空。" : "没有匹配的学生。")}
+        </div>
+        <div class="rollcall-actions">
+          <button class="btn ghost" data-action="open-class" data-id="${klass.id}">返回班级</button>
+          <button class="btn primary" data-action="save-rollcall">保存</button>
         </div>
       </div>
     </main>
@@ -343,11 +481,10 @@ function renderRollcallStudent(row) {
   const pillClass = row.status === "called" ? "status-called" : "status-unmarked";
   const label = row.status === "called" ? `已点名 · ${fmt(row.calledAt)}` : "点击名字后从未点名列表消失";
   return `
-    <article class="student-card" data-action="${row.status === "called" ? "undo-call" : "call-student"}" data-id="${row.studentId}">
-      <div></div>
+    <article class="student-card rollcall-student" data-action="${row.status === "called" ? "undo-call" : "call-student"}" data-id="${row.studentId}">
       <div class="student-main">
         <h3>${escapeHtml(row.student.name)}</h3>
-        <div class="meta">学号：${escapeHtml(row.student.studentNo || "未填写")} · ${label}</div>
+        <div class="meta">学号：${escapeHtml(row.student.studentNo || "未填写")}</div>
       </div>
       <span class="status-pill ${pillClass}">${row.status === "called" ? "已点" : "未点"}</span>
     </article>
@@ -432,18 +569,6 @@ function bindEvents() {
     render();
   });
 
-  const rollcallSearch = document.querySelector("[data-role='rollcall-search']");
-  if (rollcallSearch) rollcallSearch.addEventListener("input", (event) => {
-    state.query = event.target.value;
-    render();
-  });
-
-  const rollcallFilter = document.querySelector("[data-role='rollcall-filter']");
-  if (rollcallFilter) rollcallFilter.addEventListener("change", (event) => {
-    state.sessionFilter = event.target.value;
-    render();
-  });
-
   bindDragSort();
 }
 
@@ -452,15 +577,21 @@ async function handleAction(event) {
   const id = event.currentTarget.dataset.id;
 
   if (action === "home") goHome();
-  if (action === "new-class") { state.modal = { type: "class" }; render(); }
-  if (action === "edit-class") { state.modal = { type: "class", klass: classById(state.activeClassId) }; render(); }
+  if (action === "open-records") openRecords();
+  if (action === "open-profile") openProfile();
+  if (action === "open-classes") openClasses();
+  if (action === "new-class") openClassEditor(null);
+  if (action === "edit-class") openClassEditor(state.activeClassId);
+  if (action === "edit-class-list") openClassEditor(id);
   if (action === "open-class") openClass(id);
   if (action === "close-modal") { state.modal = null; render(); }
-  if (action === "add-student") { state.modal = { type: "student" }; render(); }
-  if (action === "edit-student") { state.modal = { type: "student", student: state.students.find((student) => student.id === id) }; render(); }
+  if (action === "add-student") openStudentEditor(null);
+  if (action === "edit-student") openStudentEditor(id);
   if (action === "delete-student") await deleteStudent(id);
+  if (action === "delete-student-editor") await deleteStudentFromEditor();
   if (action === "clear-students") await clearStudents();
   if (action === "delete-class") await deleteClass();
+  if (action === "delete-class-list") await deleteClassById(id, "classes");
   if (action === "import-students") { state.modal = { type: "import" }; render(); }
   if (action === "run-import") await importStudents();
   if (action === "new-rollcall") { state.modal = { type: "rollcall" }; render(); }
@@ -471,6 +602,9 @@ async function handleAction(event) {
   if (action === "undo-call") await setStudentCalled(id, false);
   if (action === "filter-uncalled") { state.sessionFilter = "uncalled"; render(); }
   if (action === "filter-all") { state.sessionFilter = "all"; render(); }
+  if (action === "save-rollcall") await saveRollcall();
+  if (action === "save-class-editor") await saveClassEditor();
+  if (action === "save-student-editor") await saveStudentEditor();
 }
 
 async function handleForm(event) {
@@ -479,10 +613,42 @@ async function handleForm(event) {
   if (event.currentTarget.dataset.form === "class") await saveClass(data);
   if (event.currentTarget.dataset.form === "student") await saveStudent(data);
   if (event.currentTarget.dataset.form === "rollcall") await createRollcall(data);
+  if (event.currentTarget.dataset.form === "class-editor") await saveClassEditor();
+  if (event.currentTarget.dataset.form === "student-editor") await saveStudentEditor();
 }
 
 function goHome() {
   state.view = "home";
+  state.activeClassId = null;
+  state.activeSessionId = null;
+  state.activeStudentId = null;
+  state.query = "";
+  state.modal = null;
+  render();
+}
+
+function openRecords() {
+  state.view = "records";
+  state.activeClassId = null;
+  state.activeSessionId = null;
+  state.activeStudentId = null;
+  state.query = "";
+  state.modal = null;
+  render();
+}
+
+function openProfile() {
+  state.view = "profile";
+  state.activeClassId = null;
+  state.activeSessionId = null;
+  state.activeStudentId = null;
+  state.query = "";
+  state.modal = null;
+  render();
+}
+
+function openClasses() {
+  state.view = "classes";
   state.activeClassId = null;
   state.activeSessionId = null;
   state.query = "";
@@ -493,8 +659,26 @@ function goHome() {
 function openClass(id) {
   state.activeClassId = id;
   state.activeSessionId = null;
+  state.activeStudentId = null;
   state.query = "";
-  state.view = "class";
+  state.view = "classEditor";
+  state.modal = null;
+  render();
+}
+
+function openClassEditor(id) {
+  state.activeClassId = id;
+  state.activeSessionId = null;
+  state.activeStudentId = null;
+  state.query = "";
+  state.view = "classEditor";
+  state.modal = null;
+  render();
+}
+
+function openStudentEditor(id) {
+  state.activeStudentId = id;
+  state.view = "studentEditor";
   state.modal = null;
   render();
 }
@@ -522,7 +706,33 @@ async function saveClass(data) {
     updatedAt: nowIso(),
   };
   await put("classes", klass);
-  openClass(klass.id);
+  if (state.modal.returnView === "classes") {
+    state.modal = null;
+    openClasses();
+  } else {
+    openClass(klass.id);
+  }
+  showToast("班级已保存");
+}
+
+async function saveClassEditor() {
+  const form = document.querySelector("[data-form='class-editor']");
+  if (!form) return;
+  if (!form.reportValidity()) return;
+  const data = Object.fromEntries(new FormData(form).entries());
+  const existing = classById(state.activeClassId);
+  const klass = {
+    id: existing?.id || uid(),
+    name: data.name.trim(),
+    course: data.course.trim(),
+    note: existing?.note || "",
+    createdAt: existing?.createdAt || nowIso(),
+    updatedAt: nowIso(),
+  };
+  await put("classes", klass);
+  state.activeClassId = klass.id;
+  state.view = "classEditor";
+  render();
   showToast("班级已保存");
 }
 
@@ -550,10 +760,49 @@ async function saveStudent(data) {
   showToast("学生已保存");
 }
 
+async function saveStudentEditor() {
+  const form = document.querySelector("[data-form='student-editor']");
+  if (!form) return;
+  if (!form.reportValidity()) return;
+  const data = Object.fromEntries(new FormData(form).entries());
+  const existing = state.students.find((student) => student.id === state.activeStudentId);
+  const name = data.name.trim();
+  const studentNo = data.studentNo.trim();
+  if (studentNo && state.students.some((student) => student.classId === state.activeClassId && student.studentNo === studentNo && student.id !== existing?.id)) {
+    alert("这个学号已经存在，请检查后再保存。");
+    return;
+  }
+  const student = {
+    id: existing?.id || uid(),
+    classId: state.activeClassId,
+    name,
+    studentNo,
+    order: existing?.order ?? classStudents().length,
+    createdAt: existing?.createdAt || nowIso(),
+    updatedAt: nowIso(),
+  };
+  await put("students", student);
+  await touchClass(state.activeClassId);
+  state.activeStudentId = null;
+  state.view = "classEditor";
+  render();
+  showToast("学生已保存");
+}
+
 async function deleteStudent(id) {
   if (!confirm("确定删除这个学生吗？已有点名记录会保留当时的姓名。")) return;
   await del("students", id);
   await touchClass(state.activeClassId);
+  render();
+}
+
+async function deleteStudentFromEditor() {
+  if (!state.activeStudentId) return;
+  if (!confirm("确定删除这个学生吗？已有点名记录会保留当时的姓名。")) return;
+  await del("students", state.activeStudentId);
+  await touchClass(state.activeClassId);
+  state.activeStudentId = null;
+  state.view = "classEditor";
   render();
 }
 
@@ -566,13 +815,17 @@ async function clearStudents() {
 }
 
 async function deleteClass() {
+  await deleteClassById(state.activeClassId, "home");
+}
+
+async function deleteClassById(classId, returnView = "home") {
   if (!confirm("确定删除这个班级吗？学生名单和这个班级的点名记录都会删除。")) return;
-  const classId = state.activeClassId;
   state.students = state.students.filter((student) => student.classId !== classId);
   state.sessions = state.sessions.filter((session) => session.classId !== classId);
   state.classes = state.classes.filter((klass) => klass.id !== classId);
   await saveData();
-  goHome();
+  if (returnView === "classes") openClasses();
+  else goHome();
 }
 
 async function touchClass(classId) {
@@ -695,6 +948,14 @@ async function setStudentCalled(studentId, called) {
   await saveData();
   render();
   showToast(called ? "已点名" : "已恢复为未点名");
+}
+
+async function saveRollcall() {
+  const session = activeSession();
+  if (!session) return;
+  session.updatedAt = nowIso();
+  await saveData();
+  showToast("点名已保存");
 }
 
 async function deleteRollcall(id) {

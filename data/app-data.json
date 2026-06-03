@@ -1,6 +1,106 @@
 {
-  "classes": [],
-  "students": [],
-  "sessions": [],
-  "savedAt": "2026-05-26T10:52:13.973Z"
+  "classes": [
+    {
+      "id": "mpxzbm47-o5n420",
+      "name": "一班",
+      "course": "",
+      "note": "",
+      "createdAt": "2026-06-03T11:24:40.759Z",
+      "updatedAt": "2026-06-03T12:04:22.999Z"
+    }
+  ],
+  "students": [
+    {
+      "id": "mpxzbrbv-6vdsgt",
+      "classId": "mpxzbm47-o5n420",
+      "name": "张三",
+      "studentNo": "111",
+      "order": 0,
+      "createdAt": "2026-06-03T11:24:47.515Z",
+      "updatedAt": "2026-06-03T11:24:47.515Z"
+    },
+    {
+      "id": "mpxzbvii-pdzt90",
+      "classId": "mpxzbm47-o5n420",
+      "name": "李四",
+      "studentNo": "2222",
+      "order": 1,
+      "createdAt": "2026-06-03T11:24:52.938Z",
+      "updatedAt": "2026-06-03T11:24:52.938Z"
+    },
+    {
+      "id": "mpxzc0d5-7qyki6",
+      "classId": "mpxzbm47-o5n420",
+      "name": "王二麻",
+      "studentNo": "333",
+      "order": 2,
+      "createdAt": "2026-06-03T11:24:59.225Z",
+      "updatedAt": "2026-06-03T11:24:59.225Z"
+    }
+  ],
+  "sessions": [
+    {
+      "name": "22",
+      "status": "draft",
+      "startedAt": "2026-06-03T11:27:21.327Z",
+      "updatedAt": "2026-06-03T12:04:27.629Z",
+      "id": "mpxzf20f-ptseiu",
+      "classId": "mpxzbm47-o5n420",
+      "records": [
+        {
+          "status": "called",
+          "calledAt": "2026-06-03T12:04:26.695Z",
+          "studentId": "mpxzbrbv-6vdsgt",
+          "nameSnapshot": "张三",
+          "noSnapshot": "111"
+        },
+        {
+          "status": "called",
+          "calledAt": "2026-06-03T12:04:27.231Z",
+          "studentId": "mpxzbvii-pdzt90",
+          "nameSnapshot": "李四",
+          "noSnapshot": "2222"
+        },
+        {
+          "status": "called",
+          "calledAt": "2026-06-03T12:04:27.629Z",
+          "studentId": "mpxzc0d5-7qyki6",
+          "nameSnapshot": "王二麻",
+          "noSnapshot": "333"
+        }
+      ]
+    },
+    {
+      "name": "24号",
+      "status": "draft",
+      "startedAt": "2026-06-03T11:25:14.970Z",
+      "updatedAt": "2026-06-03T11:59:26.726Z",
+      "id": "mpxzccii-gadlpm",
+      "classId": "mpxzbm47-o5n420",
+      "records": [
+        {
+          "status": "called",
+          "calledAt": "2026-06-03T11:59:26.726Z",
+          "studentId": "mpxzbrbv-6vdsgt",
+          "nameSnapshot": "张三",
+          "noSnapshot": "111"
+        },
+        {
+          "status": "uncalled",
+          "calledAt": "",
+          "studentId": "mpxzbvii-pdzt90",
+          "nameSnapshot": "李四",
+          "noSnapshot": "2222"
+        },
+        {
+          "status": "uncalled",
+          "calledAt": "",
+          "studentId": "mpxzc0d5-7qyki6",
+          "nameSnapshot": "王二麻",
+          "noSnapshot": "333"
+        }
+      ]
+    }
+  ],
+  "savedAt": "2026-06-03T12:04:28.841Z"
 }
