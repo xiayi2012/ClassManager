@@ -4,6 +4,7 @@ const $ = (selector) => document.querySelector(selector);
 const uid = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 const nowIso = () => new Date().toISOString();
 const fmt = (iso) => iso ? new Date(iso).toLocaleString("zh-CN", { hour12: false }) : "";
+const noCollator = new Intl.Collator("zh-Hans-CN", { numeric: true, sensitivity: "base" });
 const escapeHtml = (value = "") => String(value).replace(/[&<>"']/g, (s) => ({
   "&": "&amp;",
   "<": "&lt;",
@@ -20,6 +21,7 @@ let state = {
   activeClassId: null,
   activeSessionId: null,
   activeStudentId: null,
+  rollcallBackView: "records",
   query: "",
   sessionFilter: "uncalled",
   modal: null,
@@ -441,7 +443,8 @@ function renderRollcall() {
   const rows = session.records
     .map((record) => ({ ...record, student: state.students.find((student) => student.id === record.studentId) }))
     .filter((row) => row.student)
-    .filter((row) => state.sessionFilter === "all" || row.status === "uncalled");
+    .filter((row) => state.sessionFilter === "all" || row.status === "uncalled")
+    .sort(compareRollcallRows);
 
   const total = session.records.length;
   const called = session.records.filter((record) => record.status === "called").length;
@@ -469,7 +472,7 @@ function renderRollcall() {
           ${rows.map(renderRollcallStudent).join("") || renderEmpty("当前没有学生", state.sessionFilter === "uncalled" ? "未点名名单已经清空。" : "没有匹配的学生。")}
         </div>
         <div class="rollcall-actions">
-          <button class="btn ghost" data-action="open-class" data-id="${klass.id}">返回班级</button>
+          <button class="btn ghost" data-action="rollcall-back">返回</button>
           <button class="btn primary" data-action="save-rollcall">保存</button>
         </div>
       </div>
@@ -484,11 +487,18 @@ function renderRollcallStudent(row) {
     <article class="student-card rollcall-student" data-action="${row.status === "called" ? "undo-call" : "call-student"}" data-id="${row.studentId}">
       <div class="student-main">
         <h3>${escapeHtml(row.student.name)}</h3>
-        <div class="meta">学号：${escapeHtml(row.student.studentNo || "未填写")}</div>
+        <div class="meta">${escapeHtml(row.student.studentNo || "未填写学号")}</div>
       </div>
-      <span class="status-pill ${pillClass}">${row.status === "called" ? "已点" : "未点"}</span>
     </article>
   `;
+}
+
+function compareRollcallRows(a, b) {
+  const noA = a.student.studentNo || a.noSnapshot || "";
+  const noB = b.student.studentNo || b.noSnapshot || "";
+  const byNo = noCollator.compare(noA, noB);
+  if (byNo) return byNo;
+  return noCollator.compare(a.student.name || "", b.student.name || "");
 }
 
 function renderEmpty(title, body) {
@@ -603,6 +613,7 @@ async function handleAction(event) {
   if (action === "filter-uncalled") { state.sessionFilter = "uncalled"; render(); }
   if (action === "filter-all") { state.sessionFilter = "all"; render(); }
   if (action === "save-rollcall") await saveRollcall();
+  if (action === "rollcall-back") rollcallBack();
   if (action === "save-class-editor") await saveClassEditor();
   if (action === "save-student-editor") await saveStudentEditor();
 }
@@ -686,6 +697,7 @@ function openStudentEditor(id) {
 function openRollcall(id) {
   const session = state.sessions.find((item) => item.id === id);
   if (!session) return;
+  state.rollcallBackView = state.view === "records" ? "records" : state.view === "classes" ? "classes" : state.view === "home" ? "records" : "classEditor";
   state.activeSessionId = id;
   state.activeClassId = session.classId;
   state.query = "";
@@ -693,6 +705,18 @@ function openRollcall(id) {
   state.view = "rollcall";
   state.modal = null;
   render();
+}
+
+function rollcallBack() {
+  if (state.rollcallBackView === "records") {
+    openRecords();
+    return;
+  }
+  if (state.rollcallBackView === "classes") {
+    openClasses();
+    return;
+  }
+  openClass(state.activeClassId);
 }
 
 async function saveClass(data) {

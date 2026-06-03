@@ -434,16 +434,30 @@ input:focus, textarea:focus, select:focus {
 }
 
 .rollcall-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
   gap: 8px;
 }
 
 .rollcall-student {
-  grid-template-columns: minmax(0, 1fr) auto;
-  padding: 12px 14px;
+  display: grid;
+  grid-template-columns: 1fr;
+  align-content: center;
+  min-height: 76px;
+  padding: 10px 8px;
+  text-align: center;
+  border-radius: 8px;
 }
 
 .rollcall-student .student-main h3 {
-  font-size: 18px;
+  font-size: 17px;
+  white-space: normal;
+  line-height: 1.25;
+}
+
+.rollcall-student .meta {
+  margin-top: 4px;
+  font-size: 12px;
 }
 
 .rollcall-actions {
@@ -693,11 +707,7 @@ input:focus, textarea:focus, select:focus {
   }
 
   .rollcall-student {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-
-  .rollcall-student .status-pill {
-    grid-column: auto;
+    min-height: 70px;
   }
 
   .rollcall-actions,
