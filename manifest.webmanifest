@@ -1,7 +1,7 @@
 {
-  "name": "班级小管家",
-  "short_name": "班级小管家",
-  "description": "离线可用的课堂点名与历史统计工具",
+  "name": "班级点名小助手",
+  "short_name": "点名助手",
+  "description": "支持班级名单管理和自动保存点名记录",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#f7fbf8",

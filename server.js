@@ -130,6 +130,6 @@ const server = http.createServer((req, res) => {
 
 server.listen(port, host, () => {
   ensureDataFile();
-  console.log(`班级小管家已启动：http://localhost:${port}`);
+  console.log(`班级点名小助手已启动：http://localhost:${port}`);
   console.log(`数据文件：${dataFile}`);
 });

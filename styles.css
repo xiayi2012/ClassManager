@@ -316,6 +316,22 @@ input:focus, textarea:focus, select:focus {
   align-items: center;
 }
 
+.student-card[data-action="call-student"],
+.student-card[data-action="undo-call"] {
+  cursor: pointer;
+  transition: transform .12s ease, border-color .12s ease, background .12s ease;
+}
+
+.student-card[data-action="call-student"]:active,
+.student-card[data-action="undo-call"]:active {
+  transform: scale(.99);
+}
+
+.student-card[data-action="call-student"] {
+  border-color: rgba(61, 143, 131, .36);
+  background: #fbfffd;
+}
+
 .drag-handle {
   color: var(--muted);
   cursor: grab;
