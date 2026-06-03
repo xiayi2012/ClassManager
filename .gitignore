@@ -4,3 +4,4 @@ server-test*.log
 preview-*.log
 .DS_Store
 Thumbs.db
+data/app-data.json
