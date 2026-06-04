@@ -1478,6 +1478,20 @@ input:focus, textarea:focus, select:focus {
     grid-template-columns: auto minmax(0, 1fr);
   }
 
+  .student-grid .student-card,
+  .rollcall-student.student-card {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    align-items: center;
+    text-align: center;
+  }
+
+  .student-grid .student-main,
+  .rollcall-student .student-main {
+    justify-items: center;
+    text-align: center;
+  }
+
   .student-card .status-pill {
     grid-column: 2;
     width: fit-content;
