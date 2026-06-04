@@ -658,16 +658,16 @@ input:focus, textarea:focus, select:focus {
 }
 
 .student-grid {
-  grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
-  gap: 7px;
+  grid-template-columns: repeat(auto-fill, minmax(66px, 1fr));
+  gap: 5px;
 }
 
 .student-grid .student-card {
   display: grid;
   grid-template-columns: 1fr;
-  align-content: center;
-  min-height: 62px;
-  padding: 7px 6px;
+  place-items: center;
+  min-height: 54px;
+  padding: 5px 5px;
   text-align: center;
   border-color: rgba(118, 183, 173, .24);
   background: linear-gradient(180deg, #ffffff 0%, #fbfffd 100%);
@@ -679,14 +679,14 @@ input:focus, textarea:focus, select:focus {
 }
 
 .student-grid .student-main h3 {
-  font-size: 15px;
+  font-size: 14px;
   white-space: normal;
   line-height: 1.18;
 }
 
 .student-grid .meta {
-  margin-top: 3px;
-  font-size: 11px;
+  margin-top: 2px;
+  font-size: 10px;
 }
 
 .rollcall-panel {
@@ -733,16 +733,16 @@ input:focus, textarea:focus, select:focus {
 
 .rollcall-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(62px, 1fr));
   gap: 5px;
 }
 
 .rollcall-student {
   display: grid;
   grid-template-columns: 1fr;
-  align-content: center;
-  min-height: 58px;
-  padding: 6px 5px;
+  place-items: center;
+  min-height: 50px;
+  padding: 5px 4px;
   text-align: center;
   border: 1px solid rgba(118, 183, 173, .26);
   border-radius: 9px;
@@ -762,7 +762,7 @@ input:focus, textarea:focus, select:focus {
 }
 
 .rollcall-student .student-main h3 {
-  font-size: 14px;
+  font-size: 13px;
   white-space: normal;
   line-height: 1.16;
 }
@@ -1217,10 +1217,16 @@ input:focus, textarea:focus, select:focus {
 }
 
 .student-main {
+  display: grid;
+  place-items: center;
+  align-content: center;
   min-width: 0;
+  width: 100%;
 }
 
 .student-main h3 {
+  max-width: 100%;
+  text-align: center;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1478,12 +1484,12 @@ input:focus, textarea:focus, select:focus {
   }
 
   .rollcall-list {
-    grid-template-columns: repeat(auto-fill, minmax(68px, 1fr));
-    gap: 5px;
+    grid-template-columns: repeat(auto-fill, minmax(58px, 1fr));
+    gap: 4px;
   }
 
   .rollcall-student {
-    min-height: 56px;
+    min-height: 50px;
   }
 
   .rollcall-actions,
