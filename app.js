@@ -483,12 +483,13 @@ function matchStudentQuery(student) {
 }
 
 function renderStudentCard(student) {
+  const studentNo = String(student.studentNo || "").trim();
   return `
     <article class="student-card clickable-card" draggable="true" data-student-id="${student.id}" data-action="edit-student" data-id="${student.id}">
       <div class="drag-handle" title="拖拽排序">☰</div>
       <div class="student-main">
         <h3>${escapeHtml(student.name)}</h3>
-        <div class="meta">学号：${escapeHtml(student.studentNo || "未填写")}</div>
+        ${studentNo ? `<div class="meta">学号：${escapeHtml(studentNo)}</div>` : ""}
       </div>
     </article>
   `;
@@ -566,11 +567,12 @@ function renderRollcall() {
 function renderRollcallStudent(row) {
   const pillClass = row.status === "called" ? "status-called" : "status-unmarked";
   const label = row.status === "called" ? `已点名 · ${fmt(row.calledAt)}` : "点击名字后从未点名列表消失";
+  const studentNo = String(row.student.studentNo || "").trim();
   return `
     <article class="student-card rollcall-student" data-action="${row.status === "called" ? "undo-call" : "call-student"}" data-id="${row.studentId}">
       <div class="student-main">
         <h3>${escapeHtml(row.student.name)}</h3>
-        <div class="meta">${escapeHtml(row.student.studentNo || "未填写学号")}</div>
+        ${studentNo ? `<div class="meta">${escapeHtml(studentNo)}</div>` : ""}
       </div>
     </article>
   `;
